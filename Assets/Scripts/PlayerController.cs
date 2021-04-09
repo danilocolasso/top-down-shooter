@@ -23,12 +23,13 @@ public class PlayerController : Character
 
     void Move()
     {
+        Rotate();
+        
         isGrounded = controller.isGrounded;
         if (isGrounded)
         {
             Land();
             direction = transform.forward * moveSpeed * Input.GetAxis("Vertical");
-            Rotate();
 
             if (Input.GetButton("Jump"))
             {
