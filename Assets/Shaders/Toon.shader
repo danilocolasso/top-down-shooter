@@ -1,134 +1,117 @@
-Shader "Toon"
+﻿Shader "Roystan/Toon"
 {
-    Properties
-    {
-        _MainTex ("Albedo (RGB)", 2D) = "white" {}
-		_BumpMap("Normal/Bump Map", 2D) = "bump" {}
-		_Color ("Tint Color", Color) = (1,1,1,1)
-		_Antialiasing("Band Smoothing", Float) = 5.0
-		_Glossiness("Glossiness/Shininess", Float) = 400
-		_Fresnel("Fresnel/Rim Amount", Range(0, 1)) = 0.5
-		_OutlineSize("Outline Size", Float) = 0.01
-		_OutlineColor("Outline Color", Color) = (0, 0, 0, 1)
-    }
+	Properties
+	{
+		_Color("Color", Color) = (0.5, 0.65, 1, 1)
+		_MainTex("Main Texture", 2D) = "white" {}
 
-    SubShader
-    {
-        Tags { "RenderType"="Opaque" }
+		[HDR]
+		_AmbientColor("Ambient Color", Color) = (0.4,0.4,0.4,1)
 
-		Stencil
-		{
-			Ref 1
-			Comp always
-			Pass replace
-			ZFail keep
-		}
+		[HDR]
+		_SpecularColor("Specular Color", Color) = (0.9,0.9,0.9,1)
+		_Glossiness("Glossiness", Float) = 32
 
-        CGPROGRAM
-		#pragma surface surf Cel
+		[HDR]
+		_RimColor("Rim Color", Color) = (1,1,1,1)
+		_RimAmount("Rim Amount", Range(0, 1)) = 0.716
+		_RimThreshold("Rim Threshold", Range(0, 1)) = 0.1
+	}
 
-        // Use shader model 3.0 target, to get nicer looking lighting
-        #pragma target 3.0
-
-		sampler2D _MainTex;
-		sampler2D _BumpMap;
-		fixed4 _Color;
-		float _Antialiasing;
-		float _Glossiness;
-		float _Fresnel;
-
-		float4 LightingCel(SurfaceOutput s, half3 lightDir, half3 viewDir, half atten)
-		{
-			float3 normal = normalize(s.Normal);
-
-			float diffuse = dot(normal, lightDir);
-
-			float delta = fwidth(diffuse) * _Antialiasing;
-			float diffuseSmooth = smoothstep(0, delta, diffuse);
-
-			float3 halfVec = normalize(lightDir + viewDir);
-			float specular = dot(normal, halfVec);
-			specular = pow(specular * diffuseSmooth, _Glossiness);
-
-			float specularSmooth = smoothstep(0, 0.01 * _Antialiasing, specular);
-
-			float rim = 1 - dot(normal, viewDir);
-			rim = rim * pow(diffuse, 0.3);
-			float fresnelSize = 1 - _Fresnel;
-
-			float rimSmooth = smoothstep(fresnelSize, fresnelSize * 1.1, rim);
-
-			float3 col = s.Albedo * ((diffuseSmooth + specularSmooth + rimSmooth) * _LightColor0 + unity_AmbientSky);
-			return float4(col, s.Alpha);
-		}
-
-        struct Input
-        {
-            float2 uv_MainTex;
-			float2 uv_BumpMap;
-        };
-
-        void surf (Input IN, inout SurfaceOutput o)
-        {
-            fixed4 c = tex2D (_MainTex, IN.uv_MainTex) * _Color;
-            o.Albedo = c.rgb;
-			o.Normal = UnpackNormal(tex2D(_BumpMap, IN.uv_BumpMap));
-        }
-
-        ENDCG
-
+	SubShader
+	{
 		Pass
 		{
-			Cull Front
-			ZWrite OFF
-			ZTest ON
-			Stencil
+			Tags
 			{
-				Ref 1
-				Comp notequal
-				Fail keep
-				Pass replace
+				"LightMode" = "ForwardBase"
+				"PassFlags" = "OnlyDirectional"
 			}
 
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
-
+			#pragma multi_compile_fwdbase
+			
 			#include "UnityCG.cginc"
-
-			float _OutlineSize;
-			float4 _OutlineColor;
+			#include "Lighting.cginc"
+			#include "AutoLight.cginc"
 
 			struct appdata
 			{
 				float4 vertex : POSITION;
+				float4 uv : TEXCOORD0;
 				float3 normal : NORMAL;
 			};
 
-			struct v2f 
+			struct v2f
 			{
-				float4 vertex : SV_POSITION;
+				float4 pos : SV_POSITION;
+				float2 uv : TEXCOORD0;
+				float3 worldNormal : NORMAL;
+				float3 viewDir : TEXCOORD1;
+				SHADOW_COORDS(2)
 			};
 
-			v2f vert(appdata v)
+			sampler2D _MainTex;
+			float4 _MainTex_ST;
+
+			float _Glossiness;
+			float4 _SpecularColor;
+
+			float4 _RimColor;
+			float _RimAmount;
+			float _RimThreshold;
+			
+			v2f vert (appdata v)
 			{
 				v2f o;
-				float3 normal = normalize(v.normal) * _OutlineSize;
-				float3 pos = v.vertex + normal;
+				o.pos = UnityObjectToClipPos(v.vertex);
+				o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+				o.worldNormal = UnityObjectToWorldNormal(v.normal);
+				o.viewDir = WorldSpaceViewDir(v.vertex);
 
-				o.vertex = UnityObjectToClipPos(pos);
+				TRANSFER_SHADOW(o)
 
 				return o;
 			}
+			
+			float4 _Color;
+			float4 _AmbientColor;
 
-			float4 frag(v2f i) : SV_Target
+			float4 frag (v2f i) : SV_Target
 			{
-				return _OutlineColor;
-			}
+				float3 normal = normalize(i.worldNormal);
+	
+				float3 viewDir = normalize(i.viewDir);
 
+				float3 halfVector = normalize(_WorldSpaceLightPos0 + viewDir);
+				float NdotL = dot(_WorldSpaceLightPos0, normal);
+				float NdotH = dot(normal, halfVector);
+
+				float shadow = SHADOW_ATTENUATION(i);
+				float lightIntensity = smoothstep(0, 0.01, NdotL * shadow);
+
+				float specularIntensity = pow(NdotH * lightIntensity, _Glossiness * _Glossiness);
+				float specularIntensitySmooth = smoothstep(0.005, 0.01, specularIntensity);
+				
+				float4 rimDot = 1 - dot(viewDir, normal);
+
+				float rimIntensity = rimDot * pow(NdotL, _RimThreshold);
+				rimIntensity = smoothstep(_RimAmount - 0.01, _RimAmount + 0.01, rimIntensity);
+
+				float4 rim = rimIntensity * _RimColor;
+				
+				float4 specular = specularIntensitySmooth * _SpecularColor;
+
+				float4 light = lightIntensity * _LightColor0;
+				float4 sample = tex2D(_MainTex, i.uv);
+
+				return _Color * sample * (_AmbientColor + light + specular + rim);
+			}
 			ENDCG
 		}
-    }
 
-    FallBack "Diffuse"
+		UsePass "Legacy Shaders/VertexLit/SHADOWCASTER"
+	}
 }
