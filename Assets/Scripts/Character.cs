@@ -5,20 +5,26 @@ using UnityEngine;
 public class Character : MonoBehaviour
 {
     [SerializeField]
-    protected float maxHealth, currentHealth, moveSpeed, rotationSpeed, jumpSpeed, despawnTime;
+    protected float moveSpeed, rotationSpeed, jumpSpeed, despawnTime;
+    [SerializeField]
+    protected int maxHealth, health;
+
     [SerializeField]
     protected GameObject blood;
+    [SerializeField]
+    private HealthBar healthBar;
 
     protected virtual void Start()
     {
-        currentHealth = maxHealth;
+        healthBar.SetHealth(maxHealth, health);
     }
     
-    public void TakeDamage(float damage)
+    public void TakeDamage(int damage)
     {
-        currentHealth -= damage;
+        health -= damage;
+        healthBar.SetHealth(health);
 
-        if (currentHealth <= 0)
+        if (health <= 0)
         {
             Die();
         }
@@ -32,7 +38,6 @@ public class Character : MonoBehaviour
 
     public void Bleed()
     {
-        // TODO fix rotation
         Instantiate(blood, transform.position, transform.rotation * blood.transform.rotation).GetComponent<ParticleSystem>().Play();
     }
 }

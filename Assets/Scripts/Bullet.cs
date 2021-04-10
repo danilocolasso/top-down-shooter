@@ -5,7 +5,7 @@ using UnityEngine;
 public class Bullet : MonoBehaviour
 {
     public float lifeTime;
-    public float damage;
+    public int damage;
     [SerializeField]
     private GameObject collisionParticles;
 

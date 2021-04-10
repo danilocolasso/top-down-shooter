@@ -38,7 +38,7 @@ public class Shoot : MonoBehaviour
     void Pew()
     {
         shaker.ShakeCamera(cameraShakeIntencity);
-        muzzleFlash.Play();
+        Instantiate(muzzleFlash, transform.position, transform.rotation * muzzleFlash.transform.rotation).GetComponent<ParticleSystem>().Play();
 
         GameObject bullet = Instantiate (prefab, transform.position, transform.rotation * prefab.transform.rotation);
         bullet.GetComponent<Rigidbody>().AddForce(transform.forward * bulletSpeed, ForceMode.Impulse);
