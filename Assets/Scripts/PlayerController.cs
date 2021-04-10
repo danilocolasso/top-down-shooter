@@ -29,7 +29,10 @@ public class PlayerController : Character
         if (isGrounded)
         {
             Land();
-            direction = transform.forward * moveSpeed * Input.GetAxis("Vertical");
+
+            direction = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
+			direction = transform.TransformDirection(direction);
+			direction *= moveSpeed;
 
             if (Input.GetButton("Jump"))
             {
@@ -44,7 +47,15 @@ public class PlayerController : Character
 
     void Rotate()
     {
-        transform.Rotate(Vector3.up * Input.GetAxis("Horizontal") * rotationSpeed);
+        Ray cameraRay = Camera.main.ScreenPointToRay(Input.mousePosition);
+        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+        float rayLength;
+
+        if (groundPlane.Raycast(cameraRay, out rayLength))
+        {
+            Vector3 pointToLook = cameraRay.GetPoint(rayLength);
+            transform.LookAt(new Vector3(pointToLook.x, transform.position.y, pointToLook.z));
+        }
     }
 
     void Land()
