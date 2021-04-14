@@ -12,23 +12,34 @@ public class Gun : MonoBehaviour
     public int maxBullets;
     public int maxReloads;
     public float reloadTime;
-    private bool reloading = false;
+
+    [SerializeField]
+    protected AudioClip[] shootSounds;
+    [SerializeField]
+    protected AudioClip reloadSound;
+    [SerializeField]
+    protected AudioClip[] noBulletsSounds;
+
     [SerializeField]
     private ParticleSystem muzzleFlash;
-    private float lastShot;
     [SerializeField]
     private GameObject muzzle;
-    private int bullets;
-    private int reloads;
     [SerializeField]
     private UnityEngine.UI.Text bulletCounter;
     [SerializeField]
     private UnityEngine.UI.Text reloadCounter;
+    private bool reloading = false;
+    private float lastShot;
+    private int bullets;
+    private int reloads;
     private CinemachineCameraShaker shaker;
+    private AudioSource audioSource;
+
 
     void Start()
     {
         shaker = Camera.main.GetComponent<CinemachineCameraShaker>();
+        audioSource = GetComponent<AudioSource>();
 
         bullets = maxBullets;
         reloads = maxReloads;
@@ -38,7 +49,6 @@ public class Gun : MonoBehaviour
 
     void Update()
     {
-        
         if (Input.GetButtonDown("Fire1"))
         {
             if (Time.time - lastShot > coolDown)
@@ -55,40 +65,63 @@ public class Gun : MonoBehaviour
 
     void Shoot()
     {
-        if (bullets <= 0)
+        // Stop shooting when without bullets and reloads
+        if (bullets <= 0 || reloading)
         {
-            if (reloads <= 0 || reloading)
+            if (!reloading)
             {
-                return;
+                // Play random no bullets sound
+                int index = Random.Range(0, noBulletsSounds.Length);
+                audioSource.PlayOneShot(noBulletsSounds[index]);
             }
-
-            StartCoroutine(Reload());
+            
             return;
         }
 
+        // Shake the camera
         shaker.ShakeCamera(cameraShakeIntencity);
         Instantiate(muzzleFlash, muzzle.transform.position, muzzle.transform.rotation * muzzleFlash.transform.rotation).GetComponent<ParticleSystem>().Play();
 
+        // Fire!
         GameObject bullet = Instantiate (bulletPrefab, muzzle.transform.position, muzzle.transform.rotation * bulletPrefab.transform.rotation);
         bullet.GetComponent<Rigidbody>().AddForce(muzzle.transform.forward * bulletSpeed, ForceMode.Impulse);
 
+        // Decrease bullets counter and reload if necessary
         UseBullet();
     }
 
     void UseBullet()
     {
+        // Play random shot sound
+        int index = Random.Range(0, shootSounds.Length);
+        audioSource.PlayOneShot(shootSounds[index]);
+
+        // Decrease bullet counter
         bullets--;
         bulletCounter.text = bullets.ToString();
+
+        //Reload
+        if (bullets <= 0 && reloads > 0)
+        {
+            StartCoroutine(Reload());
+        }
     }
 
     protected virtual IEnumerator Reload()
     {
         reloading = true;
+        
+        // Play reloading sound
+        audioSource.PlayOneShot(reloadSound);
+
+        // Wait n seconds
         yield return new WaitForSeconds(reloadTime);
 
+        // Reset bullets counter
         bullets = maxBullets;
         bulletCounter.text = bullets.ToString();
-        
+
+        // Decrease reloads counter
         reloads--;
         reloadCounter.text = reloads.ToString();
         reloading = false;

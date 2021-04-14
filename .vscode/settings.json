@@ -1,4 +1,5 @@
-﻿{
+{
+    "editor.codeLens": false,
     "files.exclude":
     {
         "**/.DS_Store":true,
